@@ -46,7 +46,8 @@
   }
   function syncButton() {
     if (autoScrolling) return;
-    setVisible(records.scrollTop < targetScroll() - .5);
+    const position = contentAnimation ? animationTarget : records.scrollTop;
+    setVisible(position < targetScroll() - .5);
   }
   function cancelScroll() {
     clearTimeout(hideTimer); hideTimer = 0;
@@ -75,10 +76,8 @@
       {transform:`translate3d(0, ${animationStart - animationTarget}px, 0)`}
     ], {duration:duration(motion.scroll),easing:'cubic-bezier(.33, 1, .68, 1)',fill:'forwards'});
     contentAnimation.onfinish = () => {
-      records.scrollTop = animationTarget;
-      contentAnimation.cancel();
-      contentAnimation = null;
-      content.style.willChange = '';
+      // Keep the composited final frame in place. Commit the equivalent native
+      // scroll position only when the next interaction begins.
       autoScrolling = false;
       syncButton();
     };
@@ -86,7 +85,7 @@
   button.addEventListener('click', goBottom);
   records.addEventListener('scroll', syncButton, {passive:true});
   records.addEventListener('pointerdown', event => {
-    if (event.pointerType !== 'mouse' || event.button !== 0) { if (autoScrolling) { cancelScroll(); syncButton(); } return; }
+    if (event.pointerType !== 'mouse' || event.button !== 0) { if (contentAnimation) { cancelScroll(); syncButton(); } return; }
     cancelScroll(); syncButton(); mouseDrag={id:event.pointerId,y:event.clientY,top:records.scrollTop};
     records.setPointerCapture(event.pointerId); records.classList.add('dragging');
   });
@@ -96,7 +95,9 @@
   });
   function release(event) { if(mouseDrag?.id===event.pointerId){mouseDrag=null;records.classList.remove('dragging');syncButton();} }
   records.addEventListener('pointerup',release); records.addEventListener('pointercancel',release); records.addEventListener('lostpointercapture',release);
-  records.addEventListener('wheel',()=>{if(autoScrolling){cancelScroll();syncButton();}},{passive:true});
+  records.addEventListener('touchstart',()=>{if(contentAnimation){cancelScroll();syncButton();}},{passive:true});
+  records.addEventListener('wheel',()=>{if(contentAnimation){cancelScroll();syncButton();}},{passive:true});
+  records.addEventListener('keydown',()=>{if(contentAnimation){cancelScroll();syncButton();}});
   window.addEventListener('resize',()=>{cancelAnimationFrame(resizeFrame);resizeFrame=requestAnimationFrame(fit);});
   window.visualViewport?.addEventListener('resize',fit);
   document.fonts.ready.then(fit);
