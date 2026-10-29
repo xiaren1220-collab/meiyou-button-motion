@@ -11,6 +11,7 @@
   const motion = { press: 130, hide: 210, show: 250, scroll: 440 };
   let position = 0, movement = null, from = 0, to = 0, buttonVisible = true;
   let buttonAnimation = null, hideTimer = 0, drag = null, frame = 0, resizeFrame = 0, goingBottom = false;
+  let pressAnimation = null, pressedPointer = null, releasedByPointer = false;
   const scale = () => screen.getBoundingClientRect().width / 402;
   const duration = value => reduced.matches ? 1 : value;
   const maxPosition = () => Math.max(0, content.offsetHeight - (panel.offsetTop - records.offsetTop - 20));
@@ -92,9 +93,44 @@
       syncButton();
     };
   }
-  button.addEventListener('click', () => {
-    base.animate([{transform:'scale(1)'},{transform:'scale(1.22)',offset:.47},{transform:'scale(1)'}],
-      {duration:duration(motion.press),easing:'ease-out'});
+  function animatePress(target, milliseconds) {
+    const previous = getComputedStyle(base).transform;
+    pressAnimation?.cancel();
+    base.style.transform = previous;
+    pressAnimation = base.animate([
+      {transform:previous === 'none' ? 'scale(1)' : previous},
+      {transform:`scale(${target})`}
+    ], {duration:duration(milliseconds),easing:'ease-out',fill:'forwards'});
+  }
+  button.addEventListener('pointerdown', event => {
+    if (pressedPointer !== null || (event.pointerType === 'mouse' && event.button !== 0)) return;
+    stop();
+    pressedPointer = event.pointerId;
+    releasedByPointer = false;
+    button.setPointerCapture(event.pointerId);
+    animatePress(1.22, motion.press * .47);
+  });
+  button.addEventListener('pointerup', event => {
+    if (pressedPointer !== event.pointerId) return;
+    pressedPointer = null;
+    releasedByPointer = true;
+    animatePress(1, motion.press);
+  });
+  button.addEventListener('pointercancel', event => {
+    if (pressedPointer !== event.pointerId) return;
+    pressedPointer = null;
+    releasedByPointer = false;
+    animatePress(1, motion.press);
+    syncButton();
+  });
+  button.addEventListener('contextmenu', event => event.preventDefault());
+  button.addEventListener('click', event => {
+    if (!releasedByPointer && event.detail !== 0) return;
+    if (!releasedByPointer) {
+      base.animate([{transform:'scale(1)'},{transform:'scale(1.22)',offset:.47},{transform:'scale(1)'}],
+        {duration:duration(motion.press),easing:'ease-out'});
+    }
+    releasedByPointer = false;
     moveTo(maxPosition(),motion.scroll,true);
   });
   records.addEventListener('pointerdown', event => {
