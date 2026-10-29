@@ -10,9 +10,9 @@
   const reduced = matchMedia('(prefers-reduced-motion: reduce)');
   // Durations are estimates from the supplied recordings, adjustable in one place.
   const motion = { press: 130, hide: 210, show: 250, scroll: 440 };
-  let buttonVisible = true, buttonAnimation = null, scrollFrame = 0, autoScrolling = false, hideTimer = 0;
+  let buttonVisible = true, buttonAnimation = null, contentAnimation = null, autoScrolling = false, hideTimer = 0;
+  let animationStart = 0, animationTarget = 0;
   let mouseDrag = null, resizeFrame = 0;
-  const easing = t => 1 - Math.pow(1 - t, 3);
   const scale = () => screen.getBoundingClientRect().width / 402;
   const duration = value => reduced.matches ? 1 : value;
   function fit() {
@@ -22,10 +22,8 @@
     syncButton();
   }
   function targetScroll() {
-    const current = records.scrollTop;
-    const gap = 20 * scale();
-    const difference = content.getBoundingClientRect().bottom - (panel.getBoundingClientRect().top - gap);
-    return Math.max(0, Math.min(records.scrollHeight - records.clientHeight, current + difference / scale()));
+    const desired = content.offsetHeight - (panel.offsetTop - records.offsetTop - 20);
+    return Math.max(0, Math.min(records.scrollHeight - records.clientHeight, desired));
   }
   function setVisible(visible, animated = true) {
     if (visible === buttonVisible) return;
@@ -48,24 +46,42 @@
   }
   function syncButton() {
     if (autoScrolling) return;
-    const gap = (panel.getBoundingClientRect().top - content.getBoundingClientRect().bottom) / scale();
-    setVisible(gap < 19.5);
+    setVisible(records.scrollTop < targetScroll() - .5);
   }
-  function cancelScroll() { cancelAnimationFrame(scrollFrame); clearTimeout(hideTimer); hideTimer = 0; scrollFrame = 0; autoScrolling = false; }
+  function cancelScroll() {
+    clearTimeout(hideTimer); hideTimer = 0;
+    if (contentAnimation) {
+      const progress = contentAnimation.effect.getComputedTiming().progress ?? 0;
+      const current = animationStart + (animationTarget - animationStart) * progress;
+      contentAnimation.onfinish = null;
+      records.scrollTop = current;
+      contentAnimation.cancel();
+      contentAnimation = null;
+      content.style.willChange = '';
+    }
+    autoScrolling = false;
+  }
   function goBottom() {
     cancelScroll();
-    const start = records.scrollTop, target = targetScroll(), began = performance.now();
+    animationStart = records.scrollTop;
+    animationTarget = targetScroll();
     autoScrolling = true;
     base.animate([{transform:'scale(1)'},{transform:'scale(1.22)',offset:.47},{transform:'scale(1)'}],
       {duration:duration(motion.press),easing:'ease-out'});
     hideTimer = setTimeout(() => { hideTimer = 0; if (autoScrolling) setVisible(false); }, duration(motion.press));
-    function tick(now) {
-      const p = Math.min(1,(now-began)/duration(motion.scroll));
-      records.scrollTop = start + (target-start)*easing(p);
-      if (p<1) scrollFrame=requestAnimationFrame(tick);
-      else { records.scrollTop=target; autoScrolling=false; scrollFrame=0; syncButton(); }
-    }
-    scrollFrame=requestAnimationFrame(tick);
+    content.style.willChange = 'transform';
+    contentAnimation = content.animate([
+      {transform:'translate3d(0, 0, 0)'},
+      {transform:`translate3d(0, ${animationStart - animationTarget}px, 0)`}
+    ], {duration:duration(motion.scroll),easing:'cubic-bezier(.33, 1, .68, 1)',fill:'forwards'});
+    contentAnimation.onfinish = () => {
+      records.scrollTop = animationTarget;
+      contentAnimation.cancel();
+      contentAnimation = null;
+      content.style.willChange = '';
+      autoScrolling = false;
+      syncButton();
+    };
   }
   button.addEventListener('click', goBottom);
   records.addEventListener('scroll', syncButton, {passive:true});
