@@ -52,13 +52,13 @@
     shape.style.transform = previousTransform;
     shape.style.opacity = previousOpacity;
     if (!animated || reduced.matches) {
-      shape.style.transform = visible ? 'translateY(0) scale(1)' : 'translateY(7px) scale(.2)';
+      shape.style.transform = visible ? 'translateY(0) scale(1)' : 'translateY(4px) scale(.2)';
       shape.style.opacity = visible ? '1' : '0';
       return;
     }
     buttonAnimation = shape.animate([
       {transform: previousTransform === 'none' ? 'translateY(0) scale(1)' : previousTransform, opacity: previousOpacity},
-      {transform: visible ? 'translateY(0) scale(1)' : 'translateY(7px) scale(.2)', opacity: visible ? 1 : 0}
+      {transform: visible ? 'translateY(0) scale(1)' : 'translateY(4px) scale(.2)', opacity: visible ? 1 : 0}
     ], {duration:duration(visible ? motion.show : motion.hide),easing:'cubic-bezier(.2,.75,.25,1)',fill:'forwards'});
   }
   function syncButton() { setVisible(position < maxPosition() - .5); }
